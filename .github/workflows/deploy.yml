@@ -1,0 +1,46 @@
+name: Deploy BTC MLflow Dashboard
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Initial Clone or Pull on VM
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            # Clone if first time, pull if already exists
+            if [ ! -d "/home/azureuser/btc-mlflow-dashboard/.git" ]; then
+              git clone git@github.com:SudipThange/BTCUSD_MLFlow.git /home/azureuser/btc-mlflow-dashboard
+            else
+              cd /home/azureuser/btc-mlflow-dashboard && git pull origin main
+            fi
+
+            cd /home/azureuser/btc-mlflow-dashboard
+
+            # Setup Python virtual environment
+            python3 -m venv .venv
+            source .venv/bin/activate
+            pip install -r requirements.txt
+
+            # Django setup
+            python manage.py migrate --noinput
+            python manage.py collectstatic --noinput
+
+            # Build frontend
+            cd frontend && npm install && npm run build
+
+            # Restart service if exists
+            sudo systemctl restart btc-mlflow-dashboard || true
+            sudo systemctl reload nginx || true
