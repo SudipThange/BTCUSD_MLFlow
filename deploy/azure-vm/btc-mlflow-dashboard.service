@@ -1,0 +1,22 @@
+[Unit]
+Description=BTC MLflow Dashboard Django service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_GROUP__
+WorkingDirectory=__APP_HOME__
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/default/btc-mlflow-dashboard
+ExecStart=/bin/bash __APP_HOME__/deploy/azure-vm/start_backend.sh
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,41 +1,56 @@
-# BTC Custom MLflow Dashboard
+# BTC Dashboard Stack
 
-## What this adds
-- FastAPI backend for MLflow + model analytics.
-- Frontend dashboard for prediction, performance, and model drift checks.
+## Architecture
 
-## Files
-- `dashboard_api.py`: backend API and static file host.
-- `frontend/index.html`: dashboard layout.
-- `frontend/styles.css`: visual style.
-- `frontend/app.js`: frontend logic and API calls.
-- `requirements.txt`: required packages.
+- Backend: Django
+- Frontend: React with Vite
+- Process manager: systemd
+- App server: Gunicorn
+- Reverse proxy and static serving: Nginx
 
-## Run
-1. Activate your virtual environment.
-2. Install packages:
-   - `D:/ML_Flow/.venv/Scripts/python.exe -m pip install -r requirements.txt`
-3. Start API + UI server:
-   - `D:/ML_Flow/.venv/Scripts/python.exe -m uvicorn dashboard_api:app --host 127.0.0.1 --port 8000`
-4. Open browser:
-   - `http://127.0.0.1:8000`
+## Backend local run
+
+```powershell
+.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
+```
+
+## Frontend local run
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend expects the backend API under `/api/` and Vite proxies that to the local Django server in development.
 
 ## Main API endpoints
-- `GET /api/dashboard/overview`
-- `GET /api/predict-next`
-- `GET /api/performance?window=168`
-- `GET /api/model-drift?reference_window=720&current_window=168&rmse_alert_threshold=0.15`
-- `GET /api/mlflow/runs?limit=12`
-- `GET /api/series?points=300`
 
-## Drift options
-You can tune these in the frontend drift panel:
-- Reference Window: baseline period in hours.
-- Current Window: recent period in hours.
-- RMSE Alert Threshold: relative increase threshold for performance drift.
+- `GET /api/health/`
+- `GET /api/dashboard/overview/`
+- `GET /api/predict-next/`
+- `GET /api/performance/?window=168`
+- `GET /api/model-drift/?reference_window=720&current_window=168&rmse_alert_threshold=0.15`
+- `GET /api/mlflow/runs/?limit=12`
+- `GET /api/series/?points=300`
 
-### Drift logic used
-- Performance drift alert triggers when:
-  - `(rmse_current - rmse_reference) / rmse_reference > rmse_alert_threshold`
-- Feature drift is measured by PSI for each feature.
-  - PSI >= 0.2 is flagged as drift.
+## Azure VM deployment
+
+Deployment assets are available in `deploy/azure-vm/`.
+
+Main files:
+
+- `deploy/azure-vm/install.sh`
+- `deploy/azure-vm/start_backend.sh`
+- `deploy/azure-vm/build_frontend.sh`
+- `deploy/azure-vm/bootstrap_data_and_models.sh`
+- `deploy/azure-vm/btc-mlflow-dashboard.service`
+- `deploy/azure-vm/nginx-btc-mlflow-dashboard.conf`
+- `deploy/azure-vm/btc-mlflow-dashboard.env.example`
+
+Typical VM verification:
+
+- `systemctl status btc-mlflow-dashboard`
+- `curl http://127.0.0.1:8000/api/health/`
+- `curl http://your-domain.example/`
+- `sudo nginx -t`

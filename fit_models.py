@@ -18,14 +18,22 @@ from sklearn.preprocessing import StandardScaler
 
 from statsmodels.tsa.arima.model import ARIMA
 
+from app_config import (
+	ARIMA_MODEL_PATH,
+	DATASET_PATH,
+	MLFLOW_EXPERIMENT_NAME,
+	MLFLOW_TRACKING_URI,
+	MODEL_PATH,
+)
 from clean_data import load_data_from_fetch_data
 
 
-# MLflow experiment
-mlflow.set_experiment("btc_forecasting_pipeline")
+def configure_mlflow() -> None:
+	mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+	mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
 
-def get_cleaned_data(csv_path: str | Path = "btc_usd_2y_1h_data.csv") -> pd.DataFrame:
+def get_cleaned_data(csv_path: str | Path = DATASET_PATH) -> pd.DataFrame:
 	"""Load cleaned BTC-USD data from clean_data.py and ensure time ordering."""
 	df = load_data_from_fetch_data(csv_path=csv_path).copy()
 	df = df.sort_values("time_stamp").reset_index(drop=True)
@@ -48,7 +56,7 @@ def normalize_features(
 
 def train_and_save_linear_regression(
 	df: pd.DataFrame,
-	model_path: str | Path = "models/linear_regression_model.joblib",
+	model_path: str | Path = MODEL_PATH,
 	test_size: float = 0.2,
 ) -> dict[str, Any]:
 
@@ -171,7 +179,7 @@ def _select_best_arima_order(
 
 def train_and_save_arima(
 	df: pd.DataFrame,
-	model_path: str | Path = "models/arima_model.pkl",
+	model_path: str | Path = ARIMA_MODEL_PATH,
 	test_size: float = 0.2,
 ) -> dict[str, Any]:
 
@@ -222,9 +230,10 @@ def train_and_save_arima(
 
 
 def train_and_save_models(
-	csv_path: str | Path = "btc_usd_2y_1h_data.csv",
+	csv_path: str | Path = DATASET_PATH,
 ) -> dict[str, dict[str, Any]]:
 
+	configure_mlflow()
 	df = get_cleaned_data(csv_path=csv_path)
 
 	with mlflow.start_run(run_name="BTC_Forecasting_Pipeline"):

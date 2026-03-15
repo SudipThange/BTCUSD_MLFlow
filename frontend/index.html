@@ -1,130 +1,18 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BTC MLflow Command Deck</title>
+    <title>BTC Forecast Operations Console</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
-</head>
-
-<body>
-    <div class="bg-glow bg-glow-1"></div>
-    <div class="bg-glow bg-glow-2"></div>
-
-    <main class="layout">
-        <header class="hero reveal">
-            <p class="badge">Custom MLflow Dashboard</p>
-            <h1>BTC Forecasting Command Deck</h1>
-            <p class="subtitle">Live run metrics from MLflow, one-hour prediction proxy, and model drift diagnostics in one place.</p>
-        </header>
-
-        <section class="grid cards reveal">
-            <article class="card">
-                <h2>Next Hour Prediction</h2>
-                <div class="metric" id="predictionValue">-</div>
-                <p class="muted" id="predictionDelta">-</p>
-                <p class="muted" id="predictionTimestamp">-</p>
-            </article>
-
-            <article class="card">
-                <h2>Recent Performance</h2>
-                <div class="stat-row"><span>RMSE</span><strong id="perfRmse">-</strong></div>
-                <div class="stat-row"><span>MAE</span><strong id="perfMae">-</strong></div>
-                <div class="stat-row"><span>R2</span><strong id="perfR2">-</strong></div>
-            </article>
-
-            <article class="card">
-                <h2>Drift Status</h2>
-                <div class="stat-row"><span>RMSE Drift Ratio</span><strong id="driftRatio">-</strong></div>
-                <div class="stat-row"><span>Performance Alert</span><strong id="driftPerfAlert">-</strong></div>
-                <div class="stat-row"><span>Feature Alert Count</span><strong id="driftFeatureCount">-</strong></div>
-            </article>
-        </section>
-
-        <section class="grid split reveal">
-            <article class="card">
-                <div class="card-title-row">
-                    <h2>Model Metrics Comparison</h2>
-                    <button id="refreshBtn" class="btn">Refresh</button>
-                </div>
-
-                <div class="metrics-compare-grid">
-                    <article class="subcard">
-                        <h3>Linear Regression</h3>
-                        <div class="stat-row"><span>RMSE</span><strong id="lrRmse">-</strong></div>
-                        <div class="stat-row"><span>MAE</span><strong id="lrMae">-</strong></div>
-                        <div class="stat-row"><span>R2</span><strong id="lrR2">-</strong></div>
-                    </article>
-
-                    <article class="subcard">
-                        <h3>ARIMA</h3>
-                        <div class="stat-row"><span>RMSE</span><strong id="arimaRmse">-</strong></div>
-                        <div class="stat-row"><span>MAE</span><strong id="arimaMae">-</strong></div>
-                    </article>
-                </div>
-
-                <div class="diff-grid">
-                    <div class="diff-item">
-                        <span>RMSE Diff (ARIMA - LR)</span>
-                        <strong id="diffRmse">-</strong>
-                    </div>
-                    <div class="diff-item">
-                        <span>MAE Diff (ARIMA - LR)</span>
-                        <strong id="diffMae">-</strong>
-                    </div>
-                    <div class="diff-item">
-                        <span>Better Model</span>
-                        <strong id="betterModel">-</strong>
-                    </div>
-                </div>
-            </article>
-
-            <article class="card">
-                <h2>Model Drift Explorer</h2>
-                <div class="controls">
-                    <label>
-            Reference Window (hours)
-            <input type="number" id="refWindow" min="120" max="5000" value="720" />
-          </label>
-                    <label>
-            Current Window (hours)
-            <input type="number" id="curWindow" min="24" max="1000" value="168" />
-          </label>
-                    <label>
-            RMSE Alert Threshold
-            <input type="number" id="rmseThreshold" min="0.01" max="1" step="0.01" value="0.15" />
-          </label>
-                    <button id="checkDriftBtn" class="btn">Check Drift</button>
-                </div>
-                <div id="driftFeatures" class="drift-list"></div>
-            </article>
-        </section>
-
-        <section class="card reveal">
-            <h2>Latest MLflow Runs</h2>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Experiment</th>
-                            <th>Run ID</th>
-                            <th>Status</th>
-                            <th>RMSE</th>
-                            <th>MAE</th>
-                            <th>R2</th>
-                        </tr>
-                    </thead>
-                    <tbody id="runsTableBody"></tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <script src="app.js"></script>
-</body>
-
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" src="/src/main.jsx"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
 </html>

@@ -4,9 +4,11 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+from app_config import DATASET_PATH
+
 
 def get_btc_usd_hourly_data(
-	csv_path: str | Path = "btc_usd_2y_1h_data.csv",
+	csv_path: str | Path = DATASET_PATH,
 	period: str = "2y",
 	interval: str = "1h",
 	drop_incomplete_rows: bool = True,

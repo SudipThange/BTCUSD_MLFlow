@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import joblib
 import mlflow
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from mlflow.tracking import MlflowClient
 
+from app_config import DATASET_PATH, MLFLOW_TRACKING_URI, MODEL_PATH
 from clean_data import load_data_from_fetch_data
 
-
-ROOT_DIR = Path(__file__).resolve().parent
-DEFAULT_DATASET = ROOT_DIR / "btc_usd_2y_1h_data.csv"
-DEFAULT_MODEL = ROOT_DIR / "models" / "linear_regression_model.joblib"
-FRONTEND_DIR = ROOT_DIR / "frontend"
 
 FEATURE_COLUMNS = [
     "open",
@@ -31,15 +23,19 @@ FEATURE_COLUMNS = [
     "volatility",
 ]
 
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-app = FastAPI(title="BTC MLflow Dashboard API", version="1.0.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+class DashboardServiceError(Exception):
+    status_code = 500
+
+
+class ResourceNotFoundError(DashboardServiceError):
+    status_code = 404
+
+
+class ValidationError(DashboardServiceError):
+    status_code = 400
 
 
 def _safe_float(value: Any) -> float | None:
@@ -55,52 +51,49 @@ def _safe_float(value: Any) -> float | None:
 
 
 def _load_dataset() -> pd.DataFrame:
-    if not DEFAULT_DATASET.exists():
-        raise HTTPException(status_code=404, detail="Dataset not found. Run fetch_data.py first.")
+    if not DATASET_PATH.exists():
+        raise ResourceNotFoundError("Dataset not found. Run fetch_data.py first.")
 
-    df = load_data_from_fetch_data(DEFAULT_DATASET)
-    df = df.sort_values("time_stamp").reset_index(drop=True)
-    return df
+    df = load_data_from_fetch_data(DATASET_PATH)
+    return df.sort_values("time_stamp").reset_index(drop=True)
 
 
 def _load_model_artifact() -> dict[str, Any]:
-    if not DEFAULT_MODEL.exists():
-        raise HTTPException(status_code=404, detail="Model artifact not found. Run fit_models.py first.")
+    if not MODEL_PATH.exists():
+        raise ResourceNotFoundError("Model artifact not found. Run fit_models.py first.")
 
-    artifact = joblib.load(DEFAULT_MODEL)
-
+    artifact = joblib.load(MODEL_PATH)
     required_keys = {"model", "scaler", "feature_columns", "metrics", "target_column"}
     missing_keys = required_keys.difference(artifact.keys())
     if missing_keys:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Model artifact is missing required keys: {sorted(missing_keys)}",
+        raise DashboardServiceError(
+            f"Model artifact is missing required keys: {sorted(missing_keys)}"
         )
-
     return artifact
 
 
 def _get_mlflow_client() -> MlflowClient:
-    tracking_uri = mlflow.get_tracking_uri()
-
-    if tracking_uri == "file:///mlruns":
-        mlflow.set_tracking_uri(f"file:///{(ROOT_DIR / 'mlruns').as_posix()}")
-
     return MlflowClient()
 
 
 def _latest_runs(limit: int = 10) -> list[dict[str, Any]]:
     client = _get_mlflow_client()
-    experiments = client.search_experiments()
-
     all_runs: list[dict[str, Any]] = []
 
+    try:
+        experiments = client.search_experiments()
+    except Exception:
+        return []
+
     for exp in experiments:
-        runs = client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            max_results=limit,
-            order_by=["attributes.start_time DESC"],
-        )
+        try:
+            runs = client.search_runs(
+                experiment_ids=[exp.experiment_id],
+                max_results=limit,
+                order_by=["attributes.start_time DESC"],
+            )
+        except Exception:
+            continue
 
         for run in runs:
             all_runs.append(
@@ -146,7 +139,6 @@ def _get_model_metrics_summary() -> dict[str, Any]:
         if linear_metrics and arima_metrics:
             break
 
-    # Fallback to parent run metrics if child runs were not found.
     if linear_metrics is None or arima_metrics is None:
         for run in runs:
             metrics = run.get("metrics", {})
@@ -210,13 +202,16 @@ def _calculate_psi(reference: pd.Series, current: pd.Series, bins: int = 10) -> 
     return float(psi)
 
 
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health_payload() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "dataset_exists": DATASET_PATH.exists(),
+        "model_exists": MODEL_PATH.exists(),
+        "tracking_uri": mlflow.get_tracking_uri(),
+    }
 
 
-@app.get("/api/series")
-def price_series(points: int = Query(default=300, ge=50, le=2000)) -> dict[str, Any]:
+def series_payload(points: int = 300) -> dict[str, Any]:
     df = _load_dataset().tail(points)
     return {
         "points": len(df),
@@ -225,21 +220,19 @@ def price_series(points: int = Query(default=300, ge=50, le=2000)) -> dict[str, 
     }
 
 
-@app.get("/api/mlflow/runs")
-def mlflow_runs(limit: int = Query(default=12, ge=1, le=50)) -> dict[str, Any]:
+def mlflow_runs_payload(limit: int = 12) -> dict[str, Any]:
     runs = _latest_runs(limit=limit)
     return {"count": len(runs), "runs": runs}
 
 
-@app.get("/api/predict-next")
-def predict_next_hour() -> dict[str, Any]:
+def predict_next_payload() -> dict[str, Any]:
     df = _load_dataset()
     artifact = _load_model_artifact()
 
     feature_columns = artifact["feature_columns"]
     missing = [col for col in feature_columns if col not in df.columns]
     if missing:
-        raise HTTPException(status_code=500, detail=f"Missing columns in dataset: {missing}")
+        raise DashboardServiceError(f"Missing columns in dataset: {missing}")
 
     latest_row = df.iloc[[-1]].copy()
     x_latest = artifact["scaler"].transform(latest_row[feature_columns])
@@ -259,14 +252,12 @@ def predict_next_hour() -> dict[str, Any]:
     }
 
 
-@app.get("/api/performance")
-def performance(window: int = Query(default=168, ge=24, le=2000)) -> dict[str, Any]:
+def performance_payload(window: int = 168) -> dict[str, Any]:
     df = _load_dataset()
     artifact = _load_model_artifact()
 
     feature_columns = artifact["feature_columns"]
     target_column = artifact["target_column"]
-
     model = artifact["model"]
     scaler = artifact["scaler"]
 
@@ -298,11 +289,10 @@ def performance(window: int = Query(default=168, ge=24, le=2000)) -> dict[str, A
     }
 
 
-@app.get("/api/model-drift")
-def model_drift(
-    reference_window: int = Query(default=720, ge=120, le=5000),
-    current_window: int = Query(default=168, ge=24, le=1000),
-    rmse_alert_threshold: float = Query(default=0.15, ge=0.01, le=1.0),
+def model_drift_payload(
+    reference_window: int = 720,
+    current_window: int = 168,
+    rmse_alert_threshold: float = 0.15,
 ) -> dict[str, Any]:
     df = _load_dataset()
     artifact = _load_model_artifact()
@@ -314,9 +304,8 @@ def model_drift(
 
     min_required = reference_window + current_window
     if len(df) < min_required:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Not enough rows for requested windows. Need >= {min_required}, got {len(df)}",
+        raise ValidationError(
+            f"Not enough rows for requested windows. Need >= {min_required}, got {len(df)}"
         )
 
     reference_df = df.iloc[-(reference_window + current_window) : -current_window].copy()
@@ -332,7 +321,6 @@ def model_drift(
 
     rmse_ref = float(np.sqrt(np.mean((y_ref - pred_ref) ** 2)))
     rmse_cur = float(np.sqrt(np.mean((y_cur - pred_cur) ** 2)))
-
     rmse_drift_ratio = (rmse_cur - rmse_ref) / rmse_ref if rmse_ref else 0.0
     performance_drift = rmse_drift_ratio > rmse_alert_threshold
 
@@ -359,28 +347,15 @@ def model_drift(
     }
 
 
-@app.get("/api/dashboard/overview")
-def dashboard_overview() -> dict[str, Any]:
-    prediction = predict_next_hour()
-    perf = performance(window=168)
-    drift = model_drift(reference_window=720, current_window=168, rmse_alert_threshold=0.15)
-    model_metrics = _get_model_metrics_summary()
-    runs = mlflow_runs(limit=8)
-
+def dashboard_overview_payload() -> dict[str, Any]:
     return {
-        "prediction": prediction,
-        "performance": perf,
-        "drift": drift,
-        "model_metrics": model_metrics,
-        "runs": runs,
+        "prediction": predict_next_payload(),
+        "performance": performance_payload(window=168),
+        "drift": model_drift_payload(
+            reference_window=720,
+            current_window=168,
+            rmse_alert_threshold=0.15,
+        ),
+        "model_metrics": _get_model_metrics_summary(),
+        "runs": mlflow_runs_payload(limit=8),
     }
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("dashboard_api:app", host="0.0.0.0", port=8000, reload=True)
-
-
-if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

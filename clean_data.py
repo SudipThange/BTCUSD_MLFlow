@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from app_config import DATASET_PATH
 from fetch_data import get_btc_usd_hourly_data
 
 
-def load_data_from_fetch_data(csv_path: str | Path = "btc_usd_2y_1h_data.csv") -> pd.DataFrame:
+def load_data_from_fetch_data(csv_path: str | Path = DATASET_PATH) -> pd.DataFrame:
 	"""Load dataset from fetch_data output; generate it first if missing."""
 	path = Path(csv_path)
 

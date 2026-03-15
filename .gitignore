@@ -6,10 +6,21 @@ __pycache__/
 .venv/
 venv/
 env/
+.env
+.env.*
+!.env.example
+!*.env.example
+.env.azure
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.production
 
 # MLflow tracking artifacts and local DB
 mlruns/
 mlflow.db
+db.sqlite3
 
 # Local model artifacts
 models/

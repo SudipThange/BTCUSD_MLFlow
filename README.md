@@ -1,87 +1,168 @@
 # BTCUSD MLflow Forecasting Dashboard
 
-End-to-end BTC-USD forecasting workflow with MLflow experiment tracking, a FastAPI backend, and a custom dashboard frontend.
+BTC-USD forecasting workflow with:
 
-## Project Overview
+- Django JSON API backend
+- React dashboard frontend built with Vite
+- MLflow experiment tracking
+- Azure VM deployment assets for Gunicorn + Nginx
+
+## Project overview
+
 This project contains:
-- Data fetch and feature engineering for BTC-USD hourly candles
-- Data cleaning and exploratory checks
-- Model training for:
-  - Linear Regression (with `GridSearchCV` + `TimeSeriesSplit`)
-  - ARIMA (order selected by AIC)
-- MLflow logging for runs, params, and metrics
-- FastAPI endpoints for prediction, performance, and drift checks
-- Browser dashboard served directly by FastAPI
 
-## Project Structure
-- `fetch_data.py`: Download BTC-USD data and create features (`rsi`, `ma_20`, `ma_50`, `volatility`)
-- `clean_data.py`: Load dataset and run EDA-style checks
-- `fit_models.py`: Train models and log outputs to MLflow
-- `dashboard_api.py`: API layer + static frontend hosting
-- `frontend/index.html`: Dashboard UI
-- `frontend/app.js`: Dashboard data loading + interactions
-- `frontend/styles.css`: Dashboard styling
-- `requirements.txt`: Python dependencies
-- `models/`: Saved model artifacts (joblib/pkl)
-- `mlruns/`: MLflow tracking artifacts
+- BTC-USD hourly data fetch and feature engineering
+- dataset validation and EDA helpers
+- model training for linear regression and ARIMA
+- MLflow logging for runs, params, and metrics
+- Django endpoints for prediction, performance, drift checks, and run history
+- React dashboard for monitoring model behavior
+
+## Project structure
+
+- `manage.py`: Django entrypoint
+- `btc_dashboard/`: Django project settings and URL routing
+- `dashboard/`: Django app with API views and management command
+- `dashboard_services.py`: shared analytics and MLflow service layer
+- `fetch_data.py`: BTC-USD data download and feature engineering
+- `clean_data.py`: dataset loading and EDA helpers
+- `fit_models.py`: model training and artifact export
+- `frontend/`: React + Vite frontend
+- `deploy/azure-vm/`: Azure VM deployment scripts and configs
+- `models/`: saved model artifacts
+- `mlflow.db`: local MLflow tracking database
+- `mlruns/`: local MLflow artifact store
+- `frontend/package.json`: React frontend scripts
+- `frontend/package-lock.json`: locked frontend dependency tree
 
 ## Requirements
+
 - Python 3.10+
-- Virtual environment (recommended)
+- Node.js 20+ for the React frontend
+- virtual environment recommended for local development
 
-Install dependencies:
-
-```powershell
-D:/ML_Flow/.venv/Scripts/python.exe -m pip install -r D:/ML_Flow/requirements.txt
-```
-
-## Run Pipeline
-Run each step from `D:/ML_Flow`.
-
-1. Fetch and engineer dataset
+## Backend setup
 
 ```powershell
-D:/ML_Flow/.venv/Scripts/python.exe D:/ML_Flow/fetch_data.py
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py bootstrap_dashboard_assets
 ```
 
-2. Optional: run cleaning + EDA checks
+Run the Django API locally:
 
 ```powershell
-D:/ML_Flow/.venv/Scripts/python.exe D:/ML_Flow/clean_data.py
+.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
 ```
 
-3. Train and log models
+API examples:
+
+- `GET /api/health/`
+- `GET /api/dashboard/overview/`
+- `GET /api/predict-next/`
+- `GET /api/performance/?window=168`
+- `GET /api/model-drift/?reference_window=720&current_window=168&rmse_alert_threshold=0.15`
+- `GET /api/mlflow/runs/?limit=12`
+- `GET /api/series/?points=300`
+
+## Frontend setup
 
 ```powershell
-D:/ML_Flow/.venv/Scripts/python.exe D:/ML_Flow/fit_models.py
+cd frontend
+npm install
+npm run dev
 ```
 
-4. Start API + dashboard
+The Vite dev server proxies `/api` to `http://127.0.0.1:8000`.
+
+Build the production frontend bundle:
 
 ```powershell
-D:/ML_Flow/.venv/Scripts/python.exe -m uvicorn dashboard_api:app --host 127.0.0.1 --port 8000
+cd frontend
+npm run build
 ```
 
-Open in browser:
-- `http://127.0.0.1:8000`
+Local URLs:
 
-## API Endpoints
-- `GET /api/health`
-- `GET /api/dashboard/overview`
-- `GET /api/predict-next`
-- `GET /api/performance?window=168`
-- `GET /api/model-drift?reference_window=720&current_window=168&rmse_alert_threshold=0.15`
-- `GET /api/mlflow/runs?limit=12`
-- `GET /api/series?points=300`
+- React UI: `http://127.0.0.1:5173`
+- Django API: `http://127.0.0.1:8000/api/health/`
 
-## Model Drift Logic
-- Performance drift alert:
-  - `(rmse_current - rmse_reference) / rmse_reference > rmse_alert_threshold`
-- Feature drift:
-  - Population Stability Index (PSI)
-  - PSI `>= 0.2` is flagged
+## Data and model bootstrap
 
-## Notes
-- `fit_models.py` is the main training script used by the API model artifact path.
-- If dataset or model files are missing, API endpoints return clear HTTP errors with guidance.
-- MLflow artifacts are stored locally in this project (`mlruns/`).
+Fetch the dataset and train models:
+
+```powershell
+.\.venv\Scripts\python.exe fetch_data.py
+.\.venv\Scripts\python.exe fit_models.py
+```
+
+Or use the Django management command:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py bootstrap_dashboard_assets
+```
+
+## Azure VM deployment
+
+Deployment assets are in `deploy/azure-vm/`.
+
+Main deployment files:
+
+- `deploy/azure-vm/install.sh`
+- `deploy/azure-vm/start_backend.sh`
+- `deploy/azure-vm/build_frontend.sh`
+- `deploy/azure-vm/bootstrap_data_and_models.sh`
+- `deploy/azure-vm/redeploy.sh`
+- `deploy/azure-vm/btc-mlflow-dashboard.service`
+- `deploy/azure-vm/nginx-btc-mlflow-dashboard.conf`
+- `deploy/azure-vm/btc-mlflow-dashboard.env.example`
+
+Recommended VM layout:
+
+- app path: `/opt/btc-mlflow-dashboard`
+- Django served by Gunicorn on `127.0.0.1:8000`
+- React built to `frontend/dist`
+- Nginx exposed on port `80`
+- environment file: `/etc/default/btc-mlflow-dashboard`
+- MLflow tracking database: `/opt/btc-mlflow-dashboard/mlflow.db`
+
+Typical deployment flow:
+
+```bash
+git clone <your-repo-url> /opt/btc-mlflow-dashboard
+cd /opt/btc-mlflow-dashboard
+chmod +x deploy/azure-vm/*.sh
+sudo cp deploy/azure-vm/btc-mlflow-dashboard.env.example /etc/default/btc-mlflow-dashboard
+sudo nano /etc/default/btc-mlflow-dashboard
+SERVER_NAME=your-domain.example APP_USER=azureuser APP_GROUP=azureuser ./deploy/azure-vm/install.sh
+```
+
+Before running `install.sh`, update `/etc/default/btc-mlflow-dashboard` with:
+
+- `DJANGO_SECRET_KEY`
+- `DJANGO_ALLOWED_HOSTS`
+- `DJANGO_CSRF_TRUSTED_ORIGINS`
+- `MLFLOW_TRACKING_URI` if you want a different backend
+- any custom dataset or model paths
+
+Useful post-deploy checks:
+
+```bash
+systemctl status btc-mlflow-dashboard
+journalctl -u btc-mlflow-dashboard -n 100 --no-pager
+curl http://127.0.0.1:8000/api/health/
+curl http://your-domain.example/
+```
+
+For updates on the VM:
+
+```bash
+cd /opt/btc-mlflow-dashboard
+./deploy/azure-vm/redeploy.sh
+```
+
+## Git ignore notes
+
+Local-only files such as virtual environments, `.env` files, `node_modules`, `frontend/dist`, `db.sqlite3`, MLflow artifacts, generated CSVs, and model artifacts are excluded in `.gitignore`.
